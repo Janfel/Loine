@@ -1,60 +1,53 @@
-CREATE OR REPLACE FUNCTION pgr._catchment_isolines_static(
-    p_lon INTEGER,
-    p_lat INTEGER,
-    p_buffer_value NUMERIC,
-    p_calculation_type TEXT,
-    p_mode_of_transport TEXT,
-    p_direction TEXT,
-    p_inner_limit INTEGER DEFAULT 1500
+CREATE OR REPLACE FUNCTION pgr._check_input(
+    lon DOUBLE PRECISION,
+    lat DOUBLE PRECISION,
+    mode_of_transport TEXT,
+    calculation_type TEXT,
+    direction TEXT
 )
-    RETURNS geometry
+    RETURNS TEXT
     LANGUAGE plpgsql
     PARALLEL SAFE
 AS
 $function$
-    -- DESCRIPTION: Returns catchment area polygon based on grid cells.
-    --              Builds on _grids_isolines, applies triple buffer smoothing.
-    --              Dynamic factor_buffer calculated from area of union.
-
 DECLARE
-    v_catchment     GEOMETRY;
-    v_start_time    TIMESTAMP;
-    v_end_time      TIMESTAMP;
-    v_elapsed_time  INTERVAL;
-    v_factor_buffer DOUBLE PRECISION DEFAULT 100;
-
+    ctrycode     TEXT;
+    start_time   TIMESTAMP;
+    end_time     TIMESTAMP;
+    elapsed_time INTERVAL;
 BEGIN
-    v_start_time = CLOCK_TIMESTAMP();
-
-    SELECT st_makepolygon(st_exteriorring(geom)) AS geom
-    INTO v_catchment
-    FROM (SELECT (st_dump(
-            st_buffer(
-                    st_buffer(
-                            st_buffer(geom::GEOGRAPHY, v_factor_buffer / 2),
-                            v_factor_buffer * -1
-                    ),
-                    v_factor_buffer / 2
-            )::GEOMETRY
-                  )).geom AS geom
-          FROM (SELECT st_union(grid_geom) AS geom
-                FROM pgr._grids_isolines(
-                        p_lon,
-                        p_lat,
-                        p_buffer_value,
-                        p_calculation_type,
-                        p_mode_of_transport,
-                        p_direction,
-                        p_inner_limit
-                     )) tes) collect
-    ORDER BY st_area(geom) DESC
-    LIMIT 1;
-
-    v_end_time = CLOCK_TIMESTAMP();
-    v_elapsed_time = v_end_time - v_start_time;
-    RAISE NOTICE 'Execution Time for _catchment_isolines: %', v_elapsed_time;
-
-    RETURN v_catchment;
-
+    start_time = CLOCK_TIMESTAMP();
+    ----------------------------------------------------------------------------------------------------------
+    -- DESCRIPTION : checks the input, if it's correct.
+    -----------------------------------------------------------------------------------------------------------
+/*
+ The function will check the input for the main function. If the input is not correct the function will be stopped and
+ the user gets an error message.
+ */
+    IF mode_of_transport NOT IN ('card', 'car', 'caro', 'care', 'pedestrian', 'no_mode')
+    THEN
+        RAISE EXCEPTION 'Please check your input!'
+            USING HINT =
+                    'Input for Mode_of_transport should be ''car'', ''card'',''care'', ''caro'', ''pedestrian'' or ''no_mode''.';
+    ELSEIF calculation_type NOT IN ('distance', 'time', 'traffic')
+    THEN
+        RAISE EXCEPTION 'Please check your input!'
+            USING HINT = 'Input for Calculation_type should be ''distance'', ''time'' or ''traffic''.';
+    ELSEIF direction NOT IN ('from', 'to')
+    THEN
+        RAISE EXCEPTION 'Please check your input!'
+            USING HINT = 'Input for Direction should be ''from'' or ''to''.';
+    END IF;
+    IF (SELECT cluster_id
+        FROM pgr.cluster cluster
+        WHERE st_within(st_setsrid(st_makepoint(lon, lat), 4326), cluster.geom)
+        LIMIT 1) IS NULL
+    THEN
+        RAISE EXCEPTION 'The startpoint is outside the network.';
+    END IF;
+    end_time = CLOCK_TIMESTAMP();
+    elapsed_time = end_time - start_time;
+    RAISE NOTICE 'Execution Time for _check_input: %', elapsed_time;
+    RETURN ctrycode;
 END;
 $function$;
