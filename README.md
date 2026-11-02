@@ -2,7 +2,7 @@
 
 **Routing, isolines and cost matrices directly in your PostgreSQL database.**
 
-📖 Full documentation: [www.casageo.de/Loine](https://www.casageo.de/loine.html)
+📖 Full documentation: [www.casageo.de/loine.html](https://www.casageo.de/loine.html)
 
 Loine delivers a ready-to-use road network for PostgreSQL/PostGIS together with a set of SQL functions for routing and reachability analysis. Install it in your own database and run routes, isolines, reachable grid cells and cost matrices with plain SQL – no external routing service, no API limits, no data leaving your infrastructure.
 
@@ -57,10 +57,16 @@ pg_restore -h localhost -U postgres -d mydb --no-owner -j 4 loine_<country>.dump
 CALL pgr.loine_install_country('<country>');
 ```
 
-After the last country, build indexes and statistics:
+After the last country, build indexes, statistics and the base network for routes:
 
 ```sql
 CALL pgr.loine_finalize();
+```
+
+Check the installed version:
+
+```sql
+SELECT * FROM pgr.loine_info();
 ```
 
 The software can also be installed from this repository: run `install/loine_install.sql` and then `install/loine_functions.sql` instead of `loine-<version>.sql`. The country data is only available from the website.
@@ -105,9 +111,23 @@ SELECT * FROM pgr.cgo_costmatrix('my_schema.my_locations', 'card', 'time');
 
 | Parameter | Values |
 |---|---|
-| `mode` | `car`, `card`, `caro`, `care`, `pedestrian`, `no_mode` |
-| `calc` | `time` (minutes), `distance` (metres), `traffic` (minutes, routes and isolines) |
+| `mode` – routes | `car`, `card`, `caro`, `care`, `carl`, `pedestrian` |
+| `mode` – isolines, segments, grid cells | `car`, `card`, `caro`, `care`, `pedestrian`, `no_mode` |
+| `mode` – cost matrices | `card`, `caro`, `care`, `pedestrian`, `no_mode` |
+| `calc` | `time` (minutes), `distance` (metres), `traffic` (minutes; not for cost matrices) |
 | `direction` | `from` (outbound from the location), `to` (inbound to the location) |
+
+## Repository layout
+
+| Path | Content |
+|---|---|
+| `install/loine_install.sql` | Schema `pgr`, target tables and the procedures `loine_install_country` and `loine_finalize` |
+| `install/loine_functions.sql` | All functions in one file, generated from `install/upgrade_drops.sql` and `functions/` |
+| `install/upgrade_drops.sql` | Removes functions whose signature changed compared to earlier versions |
+| `functions/` | One file per function or procedure |
+| `VERSION` | Version of this release, also returned by `pgr.loine_info()` |
+
+All objects are created in the schema `pgr`. Names starting with `cgo_` are the query functions, names starting with `loine_` are administration routines you call directly, and names starting with `_` are internal helpers that are not meant to be called directly.
 
 ## Typical applications
 
