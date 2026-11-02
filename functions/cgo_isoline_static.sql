@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION pgr.cgo_isoline(
+CREATE OR REPLACE FUNCTION pgr.cgo_isoline_static(
     p_lon DOUBLE PRECISION,
     p_lat DOUBLE PRECISION,
     p_buffer_value NUMERIC,
@@ -28,7 +28,7 @@ DECLARE
     v_elapsed_time INTERVAL;
 
 BEGIN
-    RAISE INFO 'cgo_isoline – Loine % – %', (pgr.loine_info()).version, (pgr.loine_info()).website;
+    RAISE INFO 'cgo_isoline_static – Loine % – %', (pgr.loine_info()).version, (pgr.loine_info()).website;
     v_start_time = CLOCK_TIMESTAMP();
 
     --------------------------------------------------------------------------------------
@@ -59,7 +59,7 @@ BEGIN
     -- calculate catchment area -------------------------------------------------------
     --------------------------------------------------------------------------------------
 
-    SELECT pgr._catchment_isolines(
+    SELECT pgr._catchment_isolines_static(
                    v_lon3035,
                    v_lat3035,
                    v_buffer_value,
