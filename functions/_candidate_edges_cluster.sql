@@ -1,10 +1,9 @@
-CREATE OR REPLACE FUNCTION pgr._candidate_edges_array(
-    p_edges_table TEXT,
-    p_start_cluster TEXT,
-    p_center_x INTEGER,
-    p_center_y INTEGER,
-    p_street_cat INTEGER[],
-    p_radius_m INTEGER DEFAULT 500
+CREATE OR REPLACE FUNCTION pgr._candidate_edges_cluster(
+    p_start_lon INTEGER,
+    p_start_lat INTEGER,
+    p_end_lon INTEGER,
+    p_end_lat INTEGER,
+    p_street_cat INTEGER[]
 )
     RETURNS TABLE
             (
@@ -22,74 +21,81 @@ CREATE OR REPLACE FUNCTION pgr._candidate_edges_array(
                 y1            INTEGER,
                 x2            INTEGER,
                 y2            INTEGER,
-                source_id     DOUBLE PRECISION,
                 geom          geometry
             )
     LANGUAGE plpgsql
     PARALLEL SAFE
 AS
 $function$
-    -- DESCRIPTION: Selects edges using x1/y1 range filter (100m grid)
-    --              within a given radius around a center point.
-    --              cluster_id filter retained for local precision.
-    --              All calculations in metres in the projection of the region (pgr._srid), INTEGER.
+    -- DESCRIPTION: Selects edges using both partition_id (100km) and cluster_id (10km)
+    --              to minimize index scans and enable partition pruning.
 
 DECLARE
-    v_x1_min       INTEGER;
-    v_x1_max       INTEGER;
-    v_y1_min       INTEGER;
-    v_y1_max       INTEGER;
-    v_start_time   TIMESTAMP;
-    v_end_time     TIMESTAMP;
-    v_elapsed_time INTERVAL;
+    v_cluster_ids   TEXT[];
+    v_partition_ids TEXT[];
+    v_sql           TEXT;
+    v_part          TEXT;
 BEGIN
     --------------------------------------------------------------------------------------
-    -- range limits on the 100 m grid --------------------------------------------------
+    -- 1. derive cluster ids (10 km grid) ----------------------------------------------
     --------------------------------------------------------------------------------------
-    v_start_time = CLOCK_TIMESTAMP();
-    v_x1_min := FLOOR((p_center_x * 100 - p_radius_m)::DOUBLE PRECISION / 100)::INTEGER;
-    v_x1_max := CEIL((p_center_x * 100 + p_radius_m)::DOUBLE PRECISION / 100)::INTEGER;
-    v_y1_min := FLOOR((p_center_y * 100 - p_radius_m)::DOUBLE PRECISION / 100)::INTEGER;
-    v_y1_max := CEIL((p_center_y * 100 + p_radius_m)::DOUBLE PRECISION / 100)::INTEGER;
+    -- generate_series builds the set efficiently without loop overhead
+    SELECT ARRAY(
+                   SELECT 'N' || LPAD(y::TEXT, 3, '0') || 'E' || LPAD(x::TEXT, 3, '0')
+                   FROM GENERATE_SERIES(
+                                (FLOOR(LEAST(p_start_lon, p_end_lon)::DOUBLE PRECISION / 10000)::INTEGER - 1),
+                                (FLOOR(GREATEST(p_start_lon, p_end_lon)::DOUBLE PRECISION / 10000)::INTEGER + 1)
+                        ) AS x,
+                        GENERATE_SERIES(
+                                (FLOOR(LEAST(p_start_lat, p_end_lat)::DOUBLE PRECISION / 10000)::INTEGER - 1),
+                                (FLOOR(GREATEST(p_start_lat, p_end_lat)::DOUBLE PRECISION / 10000)::INTEGER + 1)
+                        ) AS y
+           )
+    INTO v_cluster_ids;
 
     --------------------------------------------------------------------------------------
-    -- query with x1/y1 range filter + cluster_id -------------------------------------
+    -- 2. derive partition ids (100 km grid) -------------------------------------------
     --------------------------------------------------------------------------------------
-    RETURN QUERY
-        EXECUTE FORMAT(
-            'SELECT DISTINCT ON (e.id)
-                e.id,
-                e.source,
-                e.target,
-                e.speed_cat::INTEGER,
-                e.street_cat::INTEGER,
-                e.cost_time::INTEGER,
-                e.cost_distance::INTEGER,
-                e.cost_traffic::INTEGER,
-                e.cluster_id,
-                e.partition_id,
-                e.x1,
-                e.y1,
-                e.x2,
-                e.y2,
-                e.source_id,
-                e.geom
-            FROM pgr.%I AS e
-            WHERE e.x1 BETWEEN %s AND %s
-              AND e.y1 BETWEEN %s AND %s
-              AND e.street_cat = ANY(%L::INTEGER[])
-              AND e.cluster_id = %L
-            ORDER BY e.id',
-            p_edges_table,
-            v_x1_min,
-            v_x1_max,
-            v_y1_min,
-            v_y1_max,
-            p_street_cat,
-            p_start_cluster
-                );
-    v_end_time = CLOCK_TIMESTAMP();
-    v_elapsed_time = v_end_time - v_start_time;
-    RAISE NOTICE 'Execution Time for _candidate_edges_array: %', v_elapsed_time;
+    -- IMPORTANT: allows PostgreSQL to skip 99 % of the table partitions immediately.
+    SELECT ARRAY(
+                   SELECT p.partition_id
+                   FROM (SELECT 'N' || LPAD(y::TEXT, 2, '0') || 'E' || LPAD(x::TEXT, 2, '0') AS partition_id
+                         FROM GENERATE_SERIES(
+                                      (FLOOR(LEAST(p_start_lon, p_end_lon)::DOUBLE PRECISION / 100000)::INTEGER),
+                                      (FLOOR(GREATEST(p_start_lon, p_end_lon)::DOUBLE PRECISION / 100000)::INTEGER)
+                              ) AS x,
+                              GENERATE_SERIES(
+                                      (FLOOR(LEAST(p_start_lat, p_end_lat)::DOUBLE PRECISION / 100000)::INTEGER),
+                                      (FLOOR(GREATEST(p_start_lat, p_end_lat)::DOUBLE PRECISION / 100000)::INTEGER)
+                              ) AS y) generated
+                            INNER JOIN pgr.partition p ON p.partition_id = generated.partition_id
+           )
+    INTO v_partition_ids;
+
+
+    v_sql := '';
+    FOREACH v_part IN ARRAY v_partition_ids
+        LOOP
+            IF v_sql <> '' THEN
+                v_sql := v_sql || ' UNION ALL ';
+            END IF;
+
+            -- direct access to the physical partition table (e.g. pgr.edges_n04e01)
+            v_sql := v_sql || FORMAT(
+                    'SELECT id, source, target, speed_cat::INTEGER, street_cat::INTEGER,
+                            cost_time::INTEGER, cost_distance::INTEGER, cost_traffic::INTEGER,
+                            cluster_id, partition_id, x1, y1, x2, y2, geom
+                     FROM pgr.edges_%s
+                     WHERE cluster_id = ANY($1)
+                       AND street_cat = ANY($2)',
+                    LOWER(v_part)
+                              );
+        END LOOP;
+
+    --------------------------------------------------------------------------------------
+    -- 3. final query with two-stage filter --------------------------------------------
+    --------------------------------------------------------------------------------------
+    RETURN QUERY EXECUTE v_sql USING v_cluster_ids, p_street_cat;
+
 END;
 $function$;
