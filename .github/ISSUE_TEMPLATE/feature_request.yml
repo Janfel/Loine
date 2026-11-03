@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a new function or an improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you want to do, and what is missing or difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How could Loine solve it? A sketch of the function call or result is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other solutions or workarounds you have considered.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched the existing issues.
+          required: true
+        - label: I have read the [ICLA](https://github.com/casaGeo/Loine/blob/main/ICLA.txt). Code or text I contribute in this issue may be used in Loine under its terms.
+          required: true
