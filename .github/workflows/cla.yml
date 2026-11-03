@@ -21,4 +21,4 @@ jobs:
           path-to-document: 'https://github.com/casaGeo/Loine/blob/main/ICLA.txt'
           path-to-signatures: 'signatures/version1/cla.json'
           branch: 'cla-signatures'
-          allowlist: 'wkiehn, jflangenbach-casageo, simon-kahre-casageo, bot*'
+          allowlist: 'wkiehn,jflangenbach-casageo,simon-kahre-casageo,bot*'
