@@ -32,6 +32,12 @@ The network is based on HERE or OpenStreetMap data. Within Europe the grid follo
 
 The SQL functions use pgRouting and select only the part of the network a request needs, so queries stay fast even on country-wide or multi-country networks.
 
+### Road network tables
+
+The Loine routing functions work on two tables: `pgr.edges` (road network) and `pgr.grids` (100 m grid cells linked to the road network). The tables can also be used without the Loine functions, for example directly with pgRouting or in QGIS.
+
+Preparing the road networks is not part of the Loine software. casaGeo provides prepared networks for Loine per country. If you want to prepare your own network, see the requirements in [Preparing your own networks](docs/tables.md#preparing-your-own-networks).
+
 ## Requirements
 
 - PostgreSQL 18 with PostGIS and pgRouting
