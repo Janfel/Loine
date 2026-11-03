@@ -1,0 +1,58 @@
+name: Bug report
+description: A function returns an error or a wrong result.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Please do not post confidential data or extracts of licensed road networks.
+  - type: input
+    id: loine-version
+    attributes:
+      label: Loine version
+      description: "Output of `SELECT * FROM pgr.loine_info();`"
+      placeholder: "3.0.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: PostgreSQL, PostGIS and pgRouting versions
+      description: "Output of `SELECT version(), postgis_lib_version(), pgr_version();`"
+    validations:
+      required: true
+  - type: input
+    id: country
+    attributes:
+      label: Country data
+      description: Country (or countries) installed and data source (HERE or OpenStreetMap).
+  - type: textarea
+    id: call
+    attributes:
+      label: Function call
+      description: The SQL statement that shows the problem.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Error message or wrong result.
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched the existing issues.
+          required: true
+        - label: I have read the [ICLA](https://github.com/casaGeo/Loine/blob/main/ICLA.txt). Code or text I contribute in this issue may be used in Loine under its terms.
+          required: true
