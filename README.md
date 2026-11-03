@@ -131,6 +131,7 @@ SELECT * FROM pgr.cgo_costmatrix('my_schema.my_locations', 'card', 'time');
 | `install/loine_functions.sql` | All functions in one file, generated from `install/upgrade_drops.sql` and `functions/` |
 | `install/upgrade_drops.sql` | Removes functions whose signature changed compared to earlier versions |
 | `functions/` | One file per function or procedure |
+| `docs/tables.md` | Structure of the tables `pgr.edges` and `pgr.grids` and requirements for your own networks |
 | `VERSION` | Version of this release, also returned by `pgr.loine_info()` |
 
 All objects are created in the schema `pgr`. Names starting with `cgo_` are the query functions, names starting with `loine_` are administration routines you call directly, and names starting with `_` are internal helpers that are not meant to be called directly.
@@ -188,6 +189,10 @@ See the [LICENSE](LICENSE) file for the complete license terms.
 For organizations that wish to use or integrate Loine without being subject to the obligations of the AGPL-3.0, a separate commercial license is available.
 
 Commercial licensing terms are provided by casaGeo Data + Services GmbH upon request.
+
+### Road network data
+
+This repository contains software only, no road network data. Networks prepared from OpenStreetMap are licensed under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/) (© OpenStreetMap contributors); networks prepared from HERE data are subject to the HERE license terms.
 
 ### Copyright and Attribution
 
