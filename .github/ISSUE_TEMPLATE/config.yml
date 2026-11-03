@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://www.casageo.de/loine.html
+    about: Installation, functions, modes of transport and examples.
+  - name: Country data, commercial license and support
+    url: https://www.casageo.de/
+    about: Contact casaGeo Data + Services GmbH (info@casageo.de).
